@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import { validatePassword } from '../utils/passwordValidation';
 import { Plus, User, Edit, Trash2, Mail, Shield, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -46,15 +47,24 @@ const Users = () => {
     try {
       const payload = { ...formData };
       if (!editingUser) {
-        // Only include password for new users
         if (!payload.password) {
           toast.error('Password is required for new users');
           return;
         }
+        const check = validatePassword(payload.password);
+        if (!check.valid) {
+          toast.error(check.message);
+          return;
+        }
       } else {
-        // Don't send password if empty (updating existing user)
         if (!payload.password) {
           delete payload.password;
+        } else {
+          const check = validatePassword(payload.password);
+          if (!check.valid) {
+            toast.error(check.message);
+            return;
+          }
         }
       }
 
@@ -76,7 +86,7 @@ const Users = () => {
       });
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to save user');
+      toast.error(error.response?.data?.error || error.response?.data?.message || 'Failed to save user');
     }
   };
 
@@ -227,6 +237,7 @@ const Users = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Password {editingUser ? '(leave empty to keep current)' : '*'}
                 </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Min 8 chars, 1 uppercase, 1 number, 1 special (!@#$%^&*).</p>
                 <input
                   type="password"
                   value={formData.password}

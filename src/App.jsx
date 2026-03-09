@@ -2,8 +2,10 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/common/Layout';
+import MaintenanceScreen from './components/MaintenanceScreen';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Warehouses from './pages/Warehouses';
@@ -13,9 +15,19 @@ import Users from './pages/Users';
 import Map from './pages/Map';
 import CameraStreams from './pages/CameraStreams';
 import WarehouseDashboard from './pages/WarehouseDashboard';
+import Profile from './pages/Profile';
+import LoginLogs from './pages/LoginLogs';
+import AuditLogs from './pages/AuditLogs';
+import AdminSettings from './pages/AdminSettings';
 
 const AppRoutes = () => {
   const { user } = useAuth();
+  const { publicSettings, publicLoading } = useSettings();
+  const maintenanceMode = publicSettings.maintenance_mode === 'true';
+  const isSuperAdmin = user?.role === 'super_admin';
+  if (!publicLoading && maintenanceMode && !isSuperAdmin) {
+    return <MaintenanceScreen />;
+  }
 
   return (
     <Routes>
@@ -64,11 +76,51 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Profile />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/users"
         element={
           <ProtectedRoute requiredRole="super_admin">
             <Layout>
               <Users />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/security/login-logs"
+        element={
+          <ProtectedRoute requiredRole="super_admin">
+            <Layout>
+              <LoginLogs />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit-logs"
+        element={
+          <ProtectedRoute requiredRole="super_admin">
+            <Layout>
+              <AuditLogs />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute requiredRole="super_admin">
+            <Layout>
+              <AdminSettings />
             </Layout>
           </ProtectedRoute>
         }
@@ -113,8 +165,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
-          <AppRoutes />
+        <SettingsProvider>
+          <Router>
+            <AppRoutes />
           <Toaster
             position="top-right"
             toastOptions={{
@@ -140,6 +193,7 @@ function App() {
             }}
           />
         </Router>
+        </SettingsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

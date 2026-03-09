@@ -30,6 +30,7 @@ const Warehouses = () => {
     longitude: '',
     address: '',
     status: 'active',
+    capacity: '',
   });
 
   useEffect(() => {
@@ -152,10 +153,14 @@ const Warehouses = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const capacityVal = formData.capacity === '' || formData.capacity == null
+        ? null
+        : parseInt(formData.capacity, 10);
       const payload = {
         ...formData,
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
+        capacity: Number.isNaN(capacityVal) ? null : capacityVal,
       };
       if (editingWarehouse) {
         await api.put(`/warehouses/${editingWarehouse.id}`, payload);
@@ -172,6 +177,7 @@ const Warehouses = () => {
         longitude: '',
         address: '',
         status: 'active',
+        capacity: '',
       });
       fetchWarehouses();
     } catch (error) {
@@ -187,6 +193,7 @@ const Warehouses = () => {
       longitude: warehouse.longitude,
       address: warehouse.address,
       status: warehouse.status,
+      capacity: warehouse.capacity != null ? String(warehouse.capacity) : '',
     });
     setShowForm(true);
   };
@@ -233,6 +240,7 @@ const Warehouses = () => {
                 longitude: '',
                 address: '',
                 status: 'active',
+                capacity: '',
               });
             }}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -332,6 +340,23 @@ const Warehouses = () => {
                 placeholder="123 Main St, City, State 12345"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Capacity (optional)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={formData.capacity}
+                onChange={(e) =>
+                  setFormData({ ...formData, capacity: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="e.g. 1000"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Max units; leave empty for no limit.</p>
+            </div>
             <div className="flex gap-3">
               <button
                 type="submit"
@@ -414,6 +439,12 @@ const Warehouses = () => {
                     {warehouse.latitude}, {warehouse.longitude}
                   </span>
                 </div>
+                {warehouse.capacity != null && (
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Capacity: </span>
+                    <span className="font-medium text-gray-900 dark:text-white">{warehouse.capacity}</span>
+                  </div>
+                )}
                 {warehouse.createdAt && (
                   <div className="text-xs text-gray-500 dark:text-gray-400 pt-2">
                     Created: {(() => {

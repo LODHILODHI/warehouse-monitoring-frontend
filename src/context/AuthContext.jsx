@@ -38,9 +38,12 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       return { success: true, data: response.data };
     } catch (error) {
+      const status = error.response?.status;
+      const message = error.response?.data?.error || 'Login failed';
       return {
         success: false,
-        error: error.response?.data?.error || 'Login failed',
+        error: message,
+        rateLimited: status === 429,
       };
     }
   };
@@ -51,8 +54,15 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  /** Update in-memory and stored user (e.g. after profile PATCH). */
+  const updateUser = (userData) => {
+    if (!userData) return;
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

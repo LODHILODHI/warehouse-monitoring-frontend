@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Package, Search, Edit, Trash2 } from 'lucide-react';
+import { useSettings } from '../context/SettingsContext';
+import { Plus, Package, Search, Edit, Trash2, ArrowRightLeft } from 'lucide-react';
 import { format } from 'date-fns';
 
 const Stock = () => {
   const { user } = useAuth();
+  const { publicSettings } = useSettings();
   const [warehouses, setWarehouses] = useState([]);
   const [stockEntries, setStockEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,18 @@ const Stock = () => {
   const isPermanentSecretary = user?.role === 'permanent_secretary';
   const canCreateEdit = isSuperAdmin || (isInspector && !isPermanentSecretary);
   const canFilterByInspector = isSuperAdmin || isPermanentSecretary;
-  const assignedWarehouses = warehouses; // In real app, filter by assignment
+  const canTransfer = (isSuperAdmin || isInspector) && publicSettings.feature_stock_transfer !== 'false';
+  const assignedWarehouses = warehouses;
+
+  const [showTransferForm, setShowTransferForm] = useState(false);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    fromWarehouseId: '',
+    toWarehouseId: '',
+    itemName: '',
+    quantity: '',
+    notes: '',
+  });
 
   useEffect(() => {
     fetchWarehouses();
@@ -282,6 +295,54 @@ const Stock = () => {
     }
   };
 
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault();
+    const qty = parseInt(transferForm.quantity, 10);
+    if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId) {
+      toast.error('Select both source and destination warehouses');
+      return;
+    }
+    if (transferForm.fromWarehouseId === transferForm.toWarehouseId) {
+      toast.error('Source and destination must be different');
+      return;
+    }
+    if (!transferForm.itemName?.trim()) {
+      toast.error('Item name is required');
+      return;
+    }
+    if (!Number.isInteger(qty) || qty < 1) {
+      toast.error('Quantity must be at least 1');
+      return;
+    }
+    try {
+      setTransferSubmitting(true);
+      await api.post('/stock/transfer', {
+        fromWarehouseId: transferForm.fromWarehouseId,
+        toWarehouseId: transferForm.toWarehouseId,
+        itemName: transferForm.itemName.trim(),
+        quantity: qty,
+        notes: transferForm.notes?.trim() || undefined,
+      });
+      toast.success('Stock transfer completed successfully');
+      setTransferForm({
+        fromWarehouseId: '',
+        toWarehouseId: '',
+        itemName: '',
+        quantity: '',
+        notes: '',
+      });
+      setShowTransferForm(false);
+      if (selectedWarehouse) {
+        fetchStockEntries(selectedWarehouse);
+      }
+    } catch (error) {
+      const msg = error.response?.data?.error || error.response?.data?.message || 'Transfer failed';
+      toast.error(msg);
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
+
   // Filter stock entries
   const filteredEntries = stockEntries.filter((entry) => {
     if (filterType && entry.type !== filterType) return false;
@@ -328,6 +389,99 @@ const Stock = () => {
           </button>
         )}
       </div>
+
+      {/* Stock Transfer (super_admin or inspector) */}
+      {canTransfer && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowTransferForm(!showTransferForm)}
+            className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white"
+          >
+            <ArrowRightLeft className="w-5 h-5" />
+            Stock transfer
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+              {showTransferForm ? '− hide' : '+ show form'}
+            </span>
+          </button>
+          {showTransferForm && (
+            <form onSubmit={handleTransferSubmit} className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">From warehouse *</label>
+                  <select
+                    value={transferForm.fromWarehouseId}
+                    onChange={(e) => setTransferForm({ ...transferForm, fromWarehouseId: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select source</option>
+                    {assignedWarehouses.map((wh) => (
+                      <option key={wh.id} value={wh.id}>{wh.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">To warehouse *</label>
+                  <select
+                    value={transferForm.toWarehouseId}
+                    onChange={(e) => setTransferForm({ ...transferForm, toWarehouseId: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select destination</option>
+                    {assignedWarehouses.map((wh) => (
+                      <option key={wh.id} value={wh.id}>{wh.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Item name *</label>
+                  <input
+                    type="text"
+                    value={transferForm.itemName}
+                    onChange={(e) => setTransferForm({ ...transferForm, itemName: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Product ABC"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantity *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={transferForm.quantity}
+                    onChange={(e) => setTransferForm({ ...transferForm, quantity: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="1"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={transferForm.notes}
+                  onChange={(e) => setTransferForm({ ...transferForm, notes: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="Optional notes"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={transferSubmitting}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {transferSubmitting ? 'Transferring...' : 'Transfer'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       {/* Create/Edit Form */}
       {showForm && canCreateEdit && (
