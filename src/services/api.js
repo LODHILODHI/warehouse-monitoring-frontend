@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-// Use relative URL when proxying through Vite, or absolute URL for production
-const API_BASE_URL = import.meta.env.PROD 
-  ? 'http://localhost:3000/api' 
-  : '/api';
+// VITE_API_BASE_URL in .env / .env.production (no trailing slash).
+// Dev: unset → use /api (Vite proxy). Prod: set → use that URL.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  ? String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, '')
+  : (import.meta.env.DEV ? '/api' : 'http://localhost:3000');
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -1,7 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-
-const API_BASE = import.meta.env.PROD ? 'http://localhost:3000/api' : '/api';
+import api from '../services/api';
 
 const defaultPublic = {
   maintenance_mode: 'false',
@@ -29,7 +27,7 @@ export const SettingsProvider = ({ children }) => {
 
   const fetchPublicSettings = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_BASE}/settings/public`, {
+      const { data } = await api.get('/settings/public', {
         timeout: 10000,
         validateStatus: () => true,
       });
